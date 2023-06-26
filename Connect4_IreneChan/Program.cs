@@ -3,31 +3,135 @@ using System.Collections.Generic;
 
 namespace Connect4_IreneChan
 {
-    // The Game Controller Class to play the game
+    /*********************************************************************
+     * Connect4Controller Class
+     * Description: The Game Controller Class to play the Connect 4 game
+     *********************************************************************/
     public class Connect4Controller
     {
-        public static int BoardRow = 6;
-        public static int BoardCol = 7;
-        private static List<Player> _playerList;
-        private static int _currentTurn;
-        private static Random r;
+        public static int BoardRow = 6;             // To define the game board row
+        public static int BoardCol = 7;             // To define the game board column
+        private static List<Player> _playerList;    // The player list
+        private static int _currentTurn;            // To store the current turn
+        private static int _count;                  // To store the current no. of turns
+        private Random r;                           // To randomly assign the players' sequence
+        private Screen _screen;                     // The Screen object to display the game board
+        private GameStatus _gameStatus;             // The GameStatus object to store the game status
 
         static Connect4Controller()
         {
+            // To initialize the static fields
             _playerList= new List<Player>();
             _currentTurn = 0;
+            _count = 0;
+        }
+
+        public Connect4Controller()
+        {
             r = new Random();
+            _screen = new Screen();
+            _gameStatus = new GameStatus();
         }
 
-        public static void PlayConnect4()
+        public void PlayConnect4()
         {
+            Console.Clear();
+
+            // Ask the player to choose the game mode
             ChoosingGameMode();
+
+            // Randomly assign the players' sequence
             RandomPlayersSeq();
+
+            // Display the sequence and players' name
             DisplayPlayers();
+
+            Console.WriteLine("\nPress [Enter] to start the game... ");
+            string start = Console.ReadLine();
+
+            // The main game logic
+            while (true)
+            {
+                PrintGameHeader();
+
+                Console.WriteLine($"It is {_playerList[_currentTurn].Name}'s turn! ");
+
+                // Get the x coordinate of the next move position from the player
+                int moveXInput = _playerList[_currentTurn].Play();
+                int moveYCal = -1;
+
+                // Error handling when input is out of range
+                try
+                {
+                    if (moveXInput < 0 || moveXInput >= 7) throw new OutOfRangeException("Please enter 1 to 7... ");
+                }
+                catch (OutOfRangeException e)
+                {
+                    Console.WriteLine(e.Message);
+                    Console.WriteLine("\nPress [Enter] to continue... ");
+                    start = Console.ReadLine();
+                    continue;
+                }
+
+                // Calculate the y coordination from the game map with the x coordinate
+                for (int i = Connect4Controller.BoardRow - 1; i >= 0; i--)
+                {
+                    if (_gameStatus.GameMap[i, moveXInput] == -1)
+                    {
+                        moveYCal = i;
+                        _gameStatus.GameMap[i, moveXInput] = _currentTurn;
+                        break;
+                    }
+                }
+
+                if (moveYCal == -1)
+                {
+                    // If no valid value is assigned to the y coordinate, 
+                    // i.e. the column is full. 
+                    // Ask the player to enter the other column number
+                    Console.WriteLine("The column is full. Please enter another column... ");
+                    Console.WriteLine("\nPress [Enter] to continue... ");
+                    start = Console.ReadLine();
+                    continue;
+                }
+
+                // After gettting the valid move, check if the player is win
+                if (_gameStatus.IsWin(_currentTurn, moveXInput, moveYCal))
+                {
+                    PrintGameHeader();
+                    Console.WriteLine($"{_playerList[_currentTurn].Name} is Win!!!");
+                    break;
+                }else if(_count >= 41)
+                {
+                    // If the current turn count is over 41 and no player wins, it is a draw
+                    PrintGameHeader();
+                    Console.WriteLine("It is a draw");
+                    break;
+                }
+
+                NextTurn();
+            }
+
+            // Ask if the player wants to restart the game
+            string restart = "";
+            while (true)
+            {
+                Console.Write("Restart? [Y/N]: ");
+                restart = Console.ReadLine().ToUpper();
+                if(restart == "Y")
+                {
+                    RestartGame();
+                    break;
+                }else if(restart == "N")
+                {
+                    break;
+                }
+            }
         }
 
-        private static void ChoosingGameMode()
+        private void ChoosingGameMode()
         {
+            // Choosing the number of players from the player (1 or 2)
             Console.WriteLine("Enter the number of player(s) [ 1 or 2 ]: ");
             int noOfPlayers;
 
@@ -46,8 +150,9 @@ namespace Connect4_IreneChan
             }
         }
 
-        private static void CreatePlayerList(int noOfPlayers)
+        private void CreatePlayerList(int noOfPlayers)
         {
+            // Create the player list based on player's input
             if(noOfPlayers == 2)
             {
                 for(int i = 0; i < noOfPlayers; i++)
@@ -56,12 +161,13 @@ namespace Connect4_IreneChan
                 }
             }else if (noOfPlayers == 1)
             {
-                _playerList.Add(new HumanPlayer(InputPlayer(0)));
+                _playerList.Add(new HumanPlayer(InputPlayer()));
                 _playerList.Add(new ComputerPlayer());
             }
         }
 
-        private static string InputPlayer(int seq)
+        // Overloading by Default Arguments
+        private string InputPlayer(int seq = 0)
         {
             if (seq == 0) Console.WriteLine("Enter the 1st player's name: ");
             else if (seq == 1) Console.WriteLine("Enter the 2nd player's name: ");
@@ -69,50 +175,83 @@ namespace Connect4_IreneChan
             return Console.ReadLine();
         }
 
-        private static void RandomPlayersSeq()
+        private void RandomPlayersSeq()
         {
             // Randomly assign the sequence of the players
             if(r.Next(0, 2) == 0) _playerList.Reverse();
         }
 
-        private static void DisplayPlayers()
+        private void DisplayPlayers()
         {
             for(int i = 0; i < _playerList.Count; i++)
             {
                 Console.WriteLine($"Player {i+1} is {_playerList[i].Name}");
             }
         }
-        private static void RestartGame()
+
+        private void PrintGameHeader()
         {
+            Console.Clear();
+            Console.WriteLine($"\n\nIt is a Connect 4 Game! ");
+            _screen.PrintGrids(_gameStatus);
+        }
+
+        private void RestartGame()
+        {
+            // Restart the game,
+            // clear all the game data for the previous game
+            // and start the game again
             _playerList.Clear();
             _currentTurn = 0;
+            _count = 0;
+
+            for (int i = 0; i < Connect4Controller.BoardRow; i++)
+            {
+                for (int j = 0; j < Connect4Controller.BoardCol; j++)
+                {
+                    _gameStatus.GameMap[i, j] = -1;
+                }
+            }
+
             PlayConnect4();
         }
 
-        public int NextTurn()
+        private void NextTurn()
         {
             // As a Connect 4 game will only have 2 players,
             // the current turn will only be switching between 0 and 1 (the 1st player and the 2nd player)
-            if (_currentTurn == 0) return 1;
-            else return 0;
+            if (_currentTurn == 0) _currentTurn = 1;
+            else _currentTurn = 0;
+            _count++;
         }
 
     }
 
-    // Player Abstract (the derived class should communicate with the world via an object that is created in the controller class)
+    /*********************************************************************
+     * Player Abstract
+     * Description: The base class of a player with Name property
+     *              and an abstract method Play() to play the game 
+     *              (make the next move)
+     *********************************************************************/
     abstract class Player
     {
         public string Name { get; set; }
+        protected Random r;
 
         public Player(string name)
         {
             Name = name;
+            r = new Random();
         }
 
-        public abstract void Play();
+        public abstract int Play();
     }
 
-    // The Human Player Class from Player Abstract
+    /*********************************************************************
+     * HumanPlayer Class
+     * Description: Inherited from Player Abstract, 
+     *              to implement the Play() method as a human player
+     *********************************************************************/
     internal class HumanPlayer : Player
     {
         public HumanPlayer(string name) : base(name)
@@ -120,13 +259,22 @@ namespace Connect4_IreneChan
 
         }
 
-        public override void Play()
+        public override int Play()
         {
-            
+            // Read and return the input move from the player
+            Console.Write("Please make your move [Enter 1 to 7]: ");
+            int num = -1;
+            string input = Console.ReadLine();
+            if(input == null || input == "" || !int.TryParse(input, out num)) return -1;
+            return num - 1;
         }
     }
 
-    // The Computer Player Class from Player Abstract
+    /*********************************************************************
+     * ComputerPlayer Class
+     * Description: Inherited from Player Abstract, 
+     *              to implement the Play() method as a computer player
+     *********************************************************************/
     internal class ComputerPlayer : Player
     {
         public ComputerPlayer() : base("Computer")
@@ -134,48 +282,43 @@ namespace Connect4_IreneChan
             
         }
 
-        public override void Play()
+        public override int Play()
         {
+            Console.WriteLine("It is the computer to make the move! ");
+            Console.WriteLine("\nPress [Enter] to continue... ");
+            string start = Console.ReadLine();
 
+            // A random move from the computer
+            return r.Next(0, 7);
         }
     }
 
-    // The Game Status Class (Model) for intermediate steps, holding information of the game
+    /*********************************************************************
+     * GameStatus Class
+     * Description: The Game Status Class (Model) for intermediate steps, 
+     *              holding information of the game. It also contains a 
+     *              IsWin() method to check if the winner has win the game
+     *********************************************************************/
     internal class GameStatus
     {
         // The Connect 4 grids
-        public static int[,] GameMap;
+        public int[,] GameMap { get; set; }
 
-        static GameStatus()
+        public GameStatus()
         {
             // To initialize the grids
-            /*
-            // For actual implementation
-            GameMap = new int[Connect4.BoardRow, Connect4.BoardCol];
+            GameMap = new int[Connect4Controller.BoardRow, Connect4Controller.BoardCol];
 
-            for(int i = 0; i < Connect4.BoardRow; i++)
+            for(int i = 0; i < Connect4Controller.BoardRow; i++)
             {
-                for(int j = 0; j < Connect4.BoardCol; j++)
+                for(int j = 0; j < Connect4Controller.BoardCol; j++)
                 {
-                    GameMap[i, j] = 0;
+                    GameMap[i, j] = -1;
                 }
             }
-            */
-
-            // For Testing
-            GameMap = new int[6, 7] 
-            {
-                { 0, 0, 1, 0, 0, 0, 0 },
-                { 0, 0, 0, 1, 0, 0, 0 },
-                { 0, 0, 0, 0, 1, 0, 0 },
-                { 0, 0, 0, 0, 0, 1, 0 },
-                { 0, 0, 0, 0, 0, 0, 0 },
-                { 0, 0, 0, 0, 0, 0, 0 }
-            };
-            
         }
 
-        public static bool IsWin(int player, int lastStepX, int lastStepY)
+        public bool IsWin(int player, int lastStepX, int lastStepY)
         {
             // To check if the player is win or not. Return true if the player win. Otherwise, return false
             if (CheckVertical(player, lastStepX, lastStepY)) return true;
@@ -186,24 +329,23 @@ namespace Connect4_IreneChan
             return false;
         }
 
-        private static bool CheckVertical(int player, int lastStepX, int lastStepY)
+        private bool CheckVertical(int player, int lastStepX, int lastStepY)
         {
-            // This method is completed!!!
-
             // Check the vertical condition of last step
-            int[,] gameMap = GameStatus.GameMap;
             int count = 1;
 
             // Check upper direction
             for (int i = 1; i <= lastStepY; i++)
             {
-                if (gameMap[lastStepY - i, lastStepX] == player) count++;
+                if (GameMap[lastStepY - i, lastStepX] == player) count++;
+                else break;
             }
 
             // Check lower direction
             for (int i = 1; i < Connect4Controller.BoardRow - lastStepY; i++)
             {
-                if (gameMap[lastStepY + i, lastStepX] == player) count++;
+                if (GameMap[lastStepY + i, lastStepX] == player) count++;
+                else break;
             }
 
             if (count >= 4) return true;
@@ -211,24 +353,23 @@ namespace Connect4_IreneChan
             return false;
         }
 
-        private static bool CheckHorizontal(int player, int lastStepX, int lastStepY)
+        private bool CheckHorizontal(int player, int lastStepX, int lastStepY)
         {
-            // This method is completed!!!
-
             // Check the horizontal condition of last step
-            int[,] gameMap = GameStatus.GameMap;
             int count = 1;
 
             // Check right direction
             for (int i = 1; i < Connect4Controller.BoardCol - lastStepX; i++)
             {
-                if (gameMap[lastStepY, lastStepX + i] == player) count++;
+                if (GameMap[lastStepY, lastStepX + i] == player) count++;
+                else break;
             }
 
             // Check left direction
             for (int i = 1; i <= lastStepX; i++)
             {
-                if (gameMap[lastStepY, lastStepX - i] == player) count++;
+                if (GameMap[lastStepY, lastStepX - i] == player) count++;
+                else break;
             }
 
             if (count >= 4) return true;
@@ -236,12 +377,9 @@ namespace Connect4_IreneChan
             return false;
         }
 
-        private static bool CheckDiagonal1(int player, int lastStepX, int lastStepY)
+        private bool CheckDiagonal1(int player, int lastStepX, int lastStepY)
         {
-            // This method is completed!!!
-
             // Check the first diagonal (from left bottom to right up) condition of last step
-            int[,] gameMap = GameStatus.GameMap;
             int count = 1;
             int checkStepRightUp;
             int checkStepLeftBottom;
@@ -254,7 +392,8 @@ namespace Connect4_IreneChan
 
             for (int i = 1; i < checkStepRightUp; i++)
             {
-                if (gameMap[lastStepY - i, lastStepX + i] == player) count++;
+                if (GameMap[lastStepY - i, lastStepX + i] == player) count++;
+                else break;
             }
 
             // Check left bottom direction
@@ -265,7 +404,8 @@ namespace Connect4_IreneChan
 
             for (int i = 1; i < checkStepLeftBottom; i++)
             {
-                if (gameMap[lastStepY + i, lastStepX - i] == player) count++;
+                if (GameMap[lastStepY + i, lastStepX - i] == player) count++;
+                else break;
             }
 
             if (count >= 4) return true;
@@ -274,12 +414,9 @@ namespace Connect4_IreneChan
             return false;
         }
 
-        private static bool CheckDiagonal2(int player, int lastStepX, int lastStepY)
+        private bool CheckDiagonal2(int player, int lastStepX, int lastStepY)
         {
-            // This method is completed!!!
-
             // Check the second diagonal (from left up to right bottom) condition of last step
-            int[,] gameMap = GameStatus.GameMap;
             int count = 1;
             int checkStepLeftUp;
             int checkStepRightBottom;
@@ -292,7 +429,8 @@ namespace Connect4_IreneChan
 
             for (int i = 1; i <= checkStepLeftUp; i++)
             {
-                if (gameMap[lastStepY - i, lastStepX - i] == player) count++;
+                if (GameMap[lastStepY - i, lastStepX - i] == player) count++;
+                else break;
             }
 
             // Check right bottom direction
@@ -303,33 +441,49 @@ namespace Connect4_IreneChan
 
             for (int i = 1; i < checkStepRightBottom; i++)
             {
-                if (gameMap[lastStepY + i, lastStepX + i] == player) count++;
+                if (GameMap[lastStepY + i, lastStepX + i] == player) count++;
+                else break;
             }
 
             if (count >= 4) return true;
 
             return false;
         }
-
     }
 
-    // Screen Class for interaction in the console to get input data / display msg
-    internal class Screen
+    /*********************************************************************
+     * IScreen Interface
+     * Description: It is an interface for the implemented class 
+     *              to print the game status map (the game board). 
+     *              The interface provides the extendibility for the style 
+     *              of displaying the game board, 
+     *              e.g. using different shapes / colors of symbols. 
+     *********************************************************************/
+    interface IScreen
     {
-        public static void PrintGrids()
-        {
-            // The method is completed!!!
+        void PrintGrids(GameStatus gameStatus);
+    }
 
-            int[,] gameMap = GameStatus.GameMap;
+    /*********************************************************************
+     * Screen Class
+     * Description: It implements the IScreen interface 
+     *              to display the game board in the console
+     *********************************************************************/
+    internal class Screen : IScreen
+    {
+        // Printing the game board based on the game map from gameStatus
+        public void PrintGrids(GameStatus gameStatus)
+        {
+            int[,] gameMap = gameStatus.GameMap;
             Console.Write("\n");
             for (int i = 0; i < gameMap.GetLength(0); i++)
             {
                 Console.Write("|");
                 for (int j = 0; j < gameMap.GetLength(1); j++)
                 {
-                    if (gameMap[i, j] == 1) Console.Write("  X");
-                    else if(gameMap[i, j] == 2) Console.Write("  O");
-                    else Console.Write("  #");
+                    if (gameMap[i, j] == 0) Console.Write("  X");
+                    else if(gameMap[i, j] == 1) Console.Write("  O");
+                    else Console.Write("   ");
                 }
                 Console.WriteLine("  |");
             }
@@ -337,14 +491,23 @@ namespace Connect4_IreneChan
         }
     }
 
+    /*********************************************************************
+     * OutOfRangeException Class
+     * Description: It inherited the ApplicationException class
+     *              to handle the user input which is out of 
+     *              the expected range (1 to 7)
+     *********************************************************************/
+    public class OutOfRangeException : ApplicationException
+    {
+        public OutOfRangeException(string msg) : base(msg) { }
+    }
+
     internal class Program
     {
         static void Main(string[] args)
         {
-            Connect4Controller.PlayConnect4();
-
-            //Screen.PrintGrids();
-            //if(GameStatus.IsWin(1, 3, 1)) Console.WriteLine("Win!!!");
+            Connect4Controller connect4Game = new Connect4Controller();
+            connect4Game.PlayConnect4();
         }
     }
 }
